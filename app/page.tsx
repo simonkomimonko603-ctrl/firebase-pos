@@ -1,69 +1,85 @@
-import Image from "next/image";
+// app/page.tsx
+"use client";
+import { useState, useEffect } from "react";
+import { db } from "@/lib/firebase";
+import { collection, getDocs, updateDoc, doc } from "firebase/firestore";
 
-export default function Home() {
+interface Table {
+  id: string;
+  name: string;
+  status: "free" | "occupied";
+  zone: string;
+}
+
+export default function POSDashboard() {
+  const [tables, setTables] = useState<Table[]>([]);
+
+  useEffect(() => {
+    async function fetchTables() {
+      try {
+        const querySnapshot = await getDocs(collection(db, "tables"));
+        const tablesData = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as Table[];
+        
+        if (tablesData.length === 0) {
+          setTables([
+            { id: "1", name: "Stôl 1", status: "free", zone: "Terasa" },
+            { id: "2", name: "Stôl 2", status: "occupied", zone: "Terasa" },
+            { id: "3", name: "Bar 1", status: "free", zone: "Bar" },
+          ]);
+        } else {
+          setTables(tablesData);
+        }
+      } catch (e) {
+        // Fallback pre lokálny test ak Firebase ešte nemá dáta/kolekciu
+        setTables([
+          { id: "1", name: "Stôl 1", status: "free", zone: "Terasa" },
+          { id: "2", name: "Stôl 2", status: "occupied", zone: "Terasa" },
+          { id: "3", name: "Bar 1", status: "free", zone: "Bar" },
+        ]);
+      }
+    }
+    fetchTables();
+  }, []);
+
+  const toggleTableStatus = async (table: Table) => {
+    const newStatus = table.status === "free" ? "occupied" : "free";
+    setTables(tables.map(t => t.id === table.id ? { ...t, status: newStatus } : t));
+    
+    try {
+      await updateDoc(doc(db, "tables", table.id), { status: newStatus });
+    } catch (e) {
+      console.log("Firebase sync offline / demo mode");
+    }
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <main className="min-h-screen bg-slate-900 text-white p-6">
+      <h1 className="text-2xl font-bold mb-6">Cloud POS – Správa Stolov</h1>
+      
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {tables.map((table) => (
+          <div
+            key={table.id}
+            onClick={() => toggleTableStatus(table)}
+            className={`p-6 rounded-xl cursor-pointer border-2 transition-all flex flex-col justify-between h-36 ${
+              table.status === "occupied" 
+                ? "bg-rose-950/40 border-rose-500 text-rose-200" 
+                : "bg-emerald-950/40 border-emerald-500 text-emerald-200"
+            }`}
           >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+            <span className="text-lg font-semibold">{table.name}</span>
+            <div>
+              <span className="text-xs uppercase tracking-wider block opacity-75">{table.zone}</span>
+              <span className="text-sm font-bold mt-1 block">
+                {table.status === "occupied" ? "Obsadený" : "Voľný"}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </main>
   );
 }
